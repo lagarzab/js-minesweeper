@@ -7,6 +7,48 @@ export default (p5) => {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
+    class Game {
+        static PLAY = 0
+        static WON = 1
+        static LOST = 2
+        static EASY = 0
+        static MEDIUM = 1
+        static HARD = 2
+        constructor (difficulty = Game.Medium) {
+            this.size = {}
+            this.startNewGame(difficulty)
+        }
+
+        startNewGame (difficulty) {
+            tiles = []
+            this.status = Game.PLAY
+            this.setDifficultySize(difficulty)
+            p5.createCanvas(this.size.width, this.size.height)
+            grid = new Grid(this.size.width, this.size.height)
+            grid.draw()
+        }
+
+        setDifficultySize (difficulty = this.difficulty) {
+            this.difficulty = difficulty
+            if (this.difficulty === Game.EASY) {
+                this.size.width = 400
+                this.size.height = 200
+            }
+            if (this.difficulty === Game.MEDIUM) {
+                this.size.width = 800
+                this.size.height = 400
+            }
+            if (this.difficulty === Game.HARD) {
+                this.size.width = 1200
+                this.size.height = 600
+            }
+        }
+
+        reset(difficulty = this.difficulty) {
+            this.startNewGame(this.difficulty = difficulty)
+        }
+    }
+
     class Grid {
         constructor(wide, high) {
             if (typeof wide === 'string') wide = parseInt(wide)
@@ -188,10 +230,9 @@ export default (p5) => {
             if (!this.nearbyDangers && !this.isDangerous) {
                 this.exposeNearbyTiles()
             } else if (this.isDangerous) {
-                gameStatus = LOST
-                grid.exposeAllTiles()
+                game.status = Game.LOST
             } else if (grid.exposedCount + grid.dangerCount === grid.tileCount) {
-                gameStatus = WON
+                game.status = Game.WON
             }
         }
 
@@ -266,22 +307,12 @@ export default (p5) => {
 
     p5.setup = () => {
         // put setup code here
+        game = new Game(Game.EASY)
         console.log('setup running')
-        let canvasWidth = 800
-        let canvasHeight = 400
-
-        let gridOffset = 20
-        let gridWidth = canvasWidth - (gridOffset * 2)
-        let gridHeight = canvasHeight - (gridOffset * 2)
-        p5.createCanvas(canvasWidth, canvasHeight).parent('p5Canvas')
-        // line(start-x1, start-y1, end-x2, end-y2);
-
-        grid = new Grid(800, 400)
-        grid.draw()
     }
 
     p5.draw = () => {
-        if (gameStatus === WON) {
+        if (game.status === Game.WON) {
             p5.fill([0, 255, 0])
             p5.text('GAME WON!!!!', 200, 200)
         } else if (gameStatus === LOST) {
@@ -291,7 +322,7 @@ export default (p5) => {
     }
 
     p5.mouseClicked = () => {
-        if (gameStatus === PLAY && grid.checkClick(p5.mouseX, p5.mouseY)) {
+        if (game.status === Game.PLAY && grid.checkClick(p5.mouseX, p5.mouseY)) {
             let tile = tiles.reduce((tObj, row, rIndex) => {
                 if (isBetween(p5.mouseY, row[0].y.min, row[0].y.max)) {
                     row.forEach((t, cIndex) => {
@@ -304,6 +335,9 @@ export default (p5) => {
             }, {})
 
             tile.exposeTile()
+        }
+        else if (game.status !== Game.PLAY) {
+            game.startNewGame(Game.EASY)
         }
     }
 }
