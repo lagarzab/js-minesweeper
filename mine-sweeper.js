@@ -25,7 +25,7 @@ export default (p5) => {
             this.setDifficultySize(difficulty)
             p5.createCanvas(this.size.width, this.size.height)
             grid = new Grid(this.size.width, this.size.height)
-            grid.draw()
+            this.draw()
         }
 
         setDifficultySize (difficulty = this.difficulty) {
@@ -46,6 +46,11 @@ export default (p5) => {
 
         reset(difficulty = this.difficulty) {
             this.startNewGame(this.difficulty = difficulty)
+        }
+
+        draw () {
+            grid.build()
+            grid.draw()
         }
     }
 
@@ -146,20 +151,19 @@ export default (p5) => {
         exposeAllTiles() {
             tiles.forEach(row => {
                 row.forEach(tile => {
-                    if (!tile.isExposed) {
+                    if (!tile.exposed) {
                         tile.exposeTile()
                     }
                 })
             })
         }
 
-        draw() {
+        build() {
             let colIndex = 0
             let rowIndex = 0
             for (let row = this.offset.y; row < this.size.height; row += tileSize) {
                 for (let col = this.offset.x; col < this.size.width; col += tileSize) {
                     let tile = new Tile(rowIndex, colIndex)
-                    tile.draw()
                     tiles[rowIndex][colIndex] = tile
                     colIndex++
                 }
@@ -168,6 +172,14 @@ export default (p5) => {
             }
             this.setDangerousTiles()
             // this.exposeAllTiles()
+        }
+
+        draw() {
+            tiles.forEach(rows => {
+                rows.forEach(tile => {
+                    tile.draw()
+                })
+            })
         }
     }
 
@@ -202,7 +214,7 @@ export default (p5) => {
             this.isFlagged = false
             this.dangersNearby = false
             this.nearbyDangers = 0
-            this.isExposed = false
+            this.exposed = false
         }
 
         makeDangerous() {
@@ -214,25 +226,17 @@ export default (p5) => {
         }
 
         exposeTile() {
-            this.color = 255
-            if (this.isDangerous) this.color = [255, 0, 0]
-
-            this.draw()
-            if (this.nearbyDangers) {
-                p5.fill(0)
-                p5.textSize(18)
-                p5.textAlign(p5.CENTER, p5.CENTER)
-                p5.text(this.nearbyDangers, this.x.min + tileSize / 2, this.y.min + tileSize / 2)
-            }
-            this.isExposed = true
-            grid.exposedCount++
-
-            if (!this.nearbyDangers && !this.isDangerous) {
-                this.exposeNearbyTiles()
-            } else if (this.isDangerous) {
-                game.status = Game.LOST
-            } else if (grid.exposedCount + grid.dangerCount === grid.tileCount) {
-                game.status = Game.WON
+            if (!this.exposed) {
+                this.exposed = true
+                grid.exposedCount++
+                if (!this.nearbyDangers && !this.isDangerous) {
+                    this.exposeNearbyTiles()
+                } else if (this.isDangerous) {
+                    game.status = Game.LOST
+                    grid.exposeAllTiles()
+                } else if (grid.exposedCount + grid.dangerCount === grid.tileCount) {
+                    game.status = Game.WON
+                }
             }
         }
 
@@ -282,7 +286,7 @@ export default (p5) => {
                         tempCol >= 0 && tempCol < grid.size.wide) {
                         // console.log('tile relativity', tempRow, tempCol)
                         // console.log('e', tempRow >= 0 && tempRow < grid.size.high, tempCol >= 0 && tempCol < grid.size.wide)
-                        if (!tiles[tempRow][tempCol].isExposed) {
+                        if (!tiles[tempRow][tempCol].exposed) {
                             //console.log('f')
                             tiles[tempRow][tempCol].exposeTile()
                         }
@@ -292,11 +296,27 @@ export default (p5) => {
         }
 
         draw() {
-            p5.fill(this.color)
+            p5.fill(255)
+            if (!this.exposed) {
+                // p5.fill(this.color)
+                p5.fill([0,255,0])
+            } else if (this.isDangerous) {
+                p5.fill([255,0,0])
+            }
             p5.square(this.x.min, this.y.min, tileSize)
+
+            if (this.exposed && this.nearbyDangers) {
+                p5.fill(0)
+                p5.textSize(18)
+                p5.textAlign(p5.CENTER, p5.CENTER)
+                p5.text(this.nearbyDangers, this.x.min + tileSize / 2, this.y.min + tileSize / 2)
+            }
+        }
+    }
         }
     }
 
+    let game
     let tileSize = 40
     let tiles = []
     let grid
@@ -312,10 +332,11 @@ export default (p5) => {
     }
 
     p5.draw = () => {
+        grid.draw()
         if (game.status === Game.WON) {
             p5.fill([0, 255, 0])
             p5.text('GAME WON!!!!', 200, 200)
-        } else if (gameStatus === LOST) {
+        } else if (game.status === Game.LOST) {
             p5.fill([255, 0, 0])
             p5.text('GAME OVER!', 200, 200)
         }
