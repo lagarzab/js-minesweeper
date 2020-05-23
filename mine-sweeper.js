@@ -7,6 +7,53 @@ export default (p5) => {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
+    class Game {
+        static PLAY = 0
+        static WON = 1
+        static LOST = 2
+        static EASY = 0
+        static MEDIUM = 1
+        static HARD = 2
+        constructor (difficulty = Game.Medium) {
+            this.size = {}
+            this.startNewGame(difficulty)
+        }
+
+        startNewGame (difficulty) {
+            tiles = []
+            this.status = Game.PLAY
+            this.setDifficultySize(difficulty)
+            p5.createCanvas(this.size.width, this.size.height)
+            grid = new Grid(this.size.width, this.size.height)
+            this.draw()
+        }
+
+        setDifficultySize (difficulty = this.difficulty) {
+            this.difficulty = difficulty
+            if (this.difficulty === Game.EASY) {
+                this.size.width = 400
+                this.size.height = 200
+            }
+            if (this.difficulty === Game.MEDIUM) {
+                this.size.width = 800
+                this.size.height = 400
+            }
+            if (this.difficulty === Game.HARD) {
+                this.size.width = 1200
+                this.size.height = 600
+            }
+        }
+
+        reset(difficulty = this.difficulty) {
+            this.startNewGame(this.difficulty = difficulty)
+        }
+
+        draw () {
+            grid.build()
+            grid.draw()
+        }
+    }
+
     class Grid {
         constructor(wide, high) {
             if (typeof wide === 'string') wide = parseInt(wide)
@@ -104,20 +151,19 @@ export default (p5) => {
         exposeAllTiles() {
             tiles.forEach(row => {
                 row.forEach(tile => {
-                    if (!tile.isExposed) {
+                    if (!tile.exposed) {
                         tile.exposeTile()
                     }
                 })
             })
         }
 
-        draw() {
+        build() {
             let colIndex = 0
             let rowIndex = 0
             for (let row = this.offset.y; row < this.size.height; row += tileSize) {
                 for (let col = this.offset.x; col < this.size.width; col += tileSize) {
                     let tile = new Tile(rowIndex, colIndex)
-                    tile.draw()
                     tiles[rowIndex][colIndex] = tile
                     colIndex++
                 }
@@ -126,6 +172,14 @@ export default (p5) => {
             }
             this.setDangerousTiles()
             // this.exposeAllTiles()
+        }
+
+        draw() {
+            tiles.forEach(rows => {
+                rows.forEach(tile => {
+                    tile.draw()
+                })
+            })
         }
     }
 
@@ -160,7 +214,7 @@ export default (p5) => {
             this.isFlagged = false
             this.dangersNearby = false
             this.nearbyDangers = 0
-            this.isExposed = false
+            this.exposed = false
         }
 
         makeDangerous() {
@@ -172,26 +226,17 @@ export default (p5) => {
         }
 
         exposeTile() {
-            this.color = 255
-            if (this.isDangerous) this.color = [255, 0, 0]
-
-            this.draw()
-            if (this.nearbyDangers) {
-                p5.fill(0)
-                p5.textSize(18)
-                p5.textAlign(p5.CENTER, p5.CENTER)
-                p5.text(this.nearbyDangers, this.x.min + tileSize / 2, this.y.min + tileSize / 2)
-            }
-            this.isExposed = true
-            grid.exposedCount++
-
-            if (!this.nearbyDangers && !this.isDangerous) {
-                this.exposeNearbyTiles()
-            } else if (this.isDangerous) {
-                gameStatus = LOST
-                grid.exposeAllTiles()
-            } else if (grid.exposedCount + grid.dangerCount === grid.tileCount) {
-                gameStatus = WON
+            if (!this.exposed) {
+                this.exposed = true
+                grid.exposedCount++
+                if (!this.nearbyDangers && !this.isDangerous) {
+                    this.exposeNearbyTiles()
+                } else if (this.isDangerous) {
+                    game.status = Game.LOST
+                    grid.exposeAllTiles()
+                } else if (grid.exposedCount + grid.dangerCount === grid.tileCount) {
+                    game.status = Game.WON
+                }
             }
         }
 
@@ -241,7 +286,7 @@ export default (p5) => {
                         tempCol >= 0 && tempCol < grid.size.wide) {
                         // console.log('tile relativity', tempRow, tempCol)
                         // console.log('e', tempRow >= 0 && tempRow < grid.size.high, tempCol >= 0 && tempCol < grid.size.wide)
-                        if (!tiles[tempRow][tempCol].isExposed) {
+                        if (!tiles[tempRow][tempCol].exposed) {
                             //console.log('f')
                             tiles[tempRow][tempCol].exposeTile()
                         }
@@ -251,11 +296,27 @@ export default (p5) => {
         }
 
         draw() {
-            p5.fill(this.color)
+            p5.fill(255)
+            if (!this.exposed) {
+                // p5.fill(this.color)
+                p5.fill([0,255,0])
+            } else if (this.isDangerous) {
+                p5.fill([255,0,0])
+            }
             p5.square(this.x.min, this.y.min, tileSize)
+
+            if (this.exposed && this.nearbyDangers) {
+                p5.fill(0)
+                p5.textSize(18)
+                p5.textAlign(p5.CENTER, p5.CENTER)
+                p5.text(this.nearbyDangers, this.x.min + tileSize / 2, this.y.min + tileSize / 2)
+            }
+        }
+    }
         }
     }
 
+    let game
     let tileSize = 40
     let tiles = []
     let grid
@@ -266,32 +327,23 @@ export default (p5) => {
 
     p5.setup = () => {
         // put setup code here
+        game = new Game(Game.EASY)
         console.log('setup running')
-        let canvasWidth = 800
-        let canvasHeight = 400
-
-        let gridOffset = 20
-        let gridWidth = canvasWidth - (gridOffset * 2)
-        let gridHeight = canvasHeight - (gridOffset * 2)
-        p5.createCanvas(canvasWidth, canvasHeight).parent('p5Canvas')
-        // line(start-x1, start-y1, end-x2, end-y2);
-
-        grid = new Grid(800, 400)
-        grid.draw()
     }
 
     p5.draw = () => {
-        if (gameStatus === WON) {
+        grid.draw()
+        if (game.status === Game.WON) {
             p5.fill([0, 255, 0])
             p5.text('GAME WON!!!!', 200, 200)
-        } else if (gameStatus === LOST) {
+        } else if (game.status === Game.LOST) {
             p5.fill([255, 0, 0])
             p5.text('GAME OVER!', 200, 200)
         }
     }
 
     p5.mouseClicked = () => {
-        if (gameStatus === PLAY && grid.checkClick(p5.mouseX, p5.mouseY)) {
+        if (game.status === Game.PLAY && grid.checkClick(p5.mouseX, p5.mouseY)) {
             let tile = tiles.reduce((tObj, row, rIndex) => {
                 if (isBetween(p5.mouseY, row[0].y.min, row[0].y.max)) {
                     row.forEach((t, cIndex) => {
@@ -304,6 +356,9 @@ export default (p5) => {
             }, {})
 
             tile.exposeTile()
+        }
+        else if (game.status !== Game.PLAY) {
+            game.startNewGame(Game.EASY)
         }
     }
 }
