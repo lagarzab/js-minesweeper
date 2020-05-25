@@ -21,6 +21,7 @@ export default (p5) => {
 
         startNewGame (difficulty) {
             tiles = []
+            explosions = []
             this.status = Game.PLAY
             this.setDifficultySize(difficulty)
             p5.createCanvas(this.size.width, this.size.height)
@@ -202,11 +203,13 @@ export default (p5) => {
             }
             this.x = {
                 min: grid.offset.x + (columnNumber * tileSize),
-                max: grid.offset.x + (columnNumber * tileSize) + tileSize
+                max: grid.offset.x + (columnNumber * tileSize) + tileSize,
+                center: (((grid.offset.x + (columnNumber * tileSize)) * 2) + tileSize) / 2
             }
             this.y = {
                 min: grid.offset.y + (rowNumber * tileSize),
-                max: grid.offset.y + (rowNumber * tileSize) + tileSize
+                max: grid.offset.y + (rowNumber * tileSize) + tileSize,
+                center: (((grid.offset.y + (rowNumber * tileSize)) * 2) + tileSize) / 2
             }
             this.color = 180
 
@@ -229,11 +232,19 @@ export default (p5) => {
             if (!this.exposed) {
                 this.exposed = true
                 grid.exposedCount++
-                if (!this.nearbyDangers && !this.isDangerous) {
+                if (!this.nearbyDangers && !this.isDangerous && game.status === Game.PLAY) {
                     this.exposeNearbyTiles()
                 } else if (this.isDangerous) {
+                    let x = this.x.center
+                    let y = this.y.center
+                    if (game.status !== Game.LOST) {
+                        x = p5.mouseX
+                        y = p5.mouseY
+                    }
                     game.status = Game.LOST
-                    grid.exposeAllTiles()
+                    exposedDanger = true
+                    explosions.push(new Explosion(x, y))
+                    explosions[explosions.length-1].detonate()
                 } else if (grid.exposedCount + grid.dangerCount === grid.tileCount) {
                     game.status = Game.WON
                 }
@@ -313,6 +324,53 @@ export default (p5) => {
             }
         }
     }
+
+    class Explosion {
+        static blastRadius
+
+        constructor(x, y) {
+            this.startX = x
+            this.startY = y
+            this.radius = 0
+            this.color = [128, 0, 200]
+            this.expansionRate = (game.difficulty + 1) * 3
+            this.triggered = false
+        }
+
+        detonate() {
+            this.triggered = true
+            this.radius = 3
+            this.expand()
+        }
+
+        expand () {
+            if (!Explosion.blastRadius) {
+                Explosion.blastRadius = game.size.width
+            }
+            if (this.radius < Explosion.blastRadius &&
+                this.triggered &&
+                grid.tileCount !== grid.exposedCount) {
+
+                this.radius += this.expansionRate
+                tiles.forEach(rows => rows.forEach(tile => {
+                    let dist = Math.floor(p5.dist(this.startX, this.startY, tile.x.center, tile.y.center))
+                    let d = this.radius + tileSize/2
+                    if (dist < d) {
+                        tile.exposeTile()
+                    }
+                }))
+
+            }
+            else {
+                this.radius = 0
+                this.triggered = false
+            }
+
+            p5.push()
+            p5.stroke(this.color)
+            p5.noFill()
+            p5.ellipse(this.startX, this.startY, this.radius * 2, this.radius * 2)
+            p5.pop()
         }
     }
 
@@ -320,18 +378,17 @@ export default (p5) => {
     let tileSize = 40
     let tiles = []
     let grid
-    let PLAY = 0
-    let LOST = 1
-    let WON = 2
-    let gameStatus = PLAY
+    let exposedDanger = false
+    let explosions = []
+    let selectedDifficulty = Game.HARD
 
     p5.setup = () => {
         // put setup code here
-        game = new Game(Game.EASY)
-        console.log('setup running')
+        game = new Game(selectedDifficulty)
     }
 
     p5.draw = () => {
+        p5.background(255)
         grid.draw()
         if (game.status === Game.WON) {
             p5.fill([0, 255, 0])
@@ -339,6 +396,16 @@ export default (p5) => {
         } else if (game.status === Game.LOST) {
             p5.fill([255, 0, 0])
             p5.text('GAME OVER!', 200, 200)
+        }
+        if (exposedDanger === true) {
+            let e = explosions.length - 1
+            while (e >= 0 && grid.tileCount != grid.exposedCount) {
+                explosions[e].expand()
+                if (!explosions[e].triggered) {
+                    explosions = explosions.splice(e, 1)
+                }
+                e--
+            }
         }
     }
 
@@ -358,7 +425,7 @@ export default (p5) => {
             tile.exposeTile()
         }
         else if (game.status !== Game.PLAY) {
-            game.startNewGame(Game.EASY)
+            game.startNewGame(selectedDifficulty)
         }
     }
 }
